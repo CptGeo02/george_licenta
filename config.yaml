@@ -1,0 +1,4 @@
+model_path: "models/yolov8n.onnx"
+#video_source: "data/videos/sample_video.mp4"
+video_source: 0
+output_path: "data/output/client_analysis.xlsx"
