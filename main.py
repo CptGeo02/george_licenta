@@ -1,45 +1,46 @@
-import time
-from models.detection_model import YoloNASDetector
-from utils.table_status import TableStatus
-from utils.time_tracking import TimeTracker
-import pandas as pd
+import yaml
+from src.detection.yolov8_detector import YOLOv8Detector
+from src.tracking.table_tracker import TableTracker
+from src.tracking.client_tracker import ClientTracker
+from src.analysis.data_manager import DataManager
+from src.analysis.statistics import Statistics
+from src.utils.logger import Logger
+import cv2
+import tkinter as tk
+from src.gui import App  # Importă aplicația GUI
 
-# Inițializare modele și algoritmi
-detector = YoloNASDetector()
-status_checker = TableStatus()
-time_tracker = TimeTracker()
+def main():
+    logger = Logger()
+    
+    # Încarcă configurațiile
+    with open("config.yaml", "r") as f:
+        config = yaml.safe_load(f)
 
-# Exemplu de date simulate (în viața reală, ai lua aceste date din camera RealSense D435i)
-tables = [{'id': 1, 'status': 'available', 'people': 0},
-          {'id': 2, 'status': 'eating', 'people': 4}]
+    # Inițializează detectorul YOLOv8
+    detector = YOLOv8Detector(model_path=config['model_path'], logger=logger)
 
-# Funcția principală de monitorizare
-def monitor_restaurant():
-    for table in tables:
-        # Actualizează statusul mesei
-        table['status'] = status_checker.check_status(table['id'])
-        
-        # Monitorizează timpul petrecut de clienți la masă
-        time_tracker.track_time(table['id'])
-        
-        # Adaugă datele la un fișier Excel
-        data = {
-            'Table ID': table['id'],
-            'Status': table['status'],
-            'People Count': table['people'],
-            'Total Time': time_tracker.get_total_time(table['id']),
-            'Order Time': time_tracker.get_order_time(table['id']),
-            'Wait Time': time_tracker.get_wait_time(table['id'])
-        }
-        
-        save_to_excel(data)
+    # Inițializează tracker-ul pentru mese și clienți
+    table_tracker = TableTracker(logger=logger)
+    client_tracker = ClientTracker(logger=logger)
 
-def save_to_excel(data):
-    df = pd.DataFrame([data])
-    with pd.ExcelWriter('data/customer_data.xlsx', mode='a', if_sheet_exists='overlay') as writer:
-        df.to_excel(writer, sheet_name='Sheet1', index=False, header=False)
+    # Inițializează managerul de date
+    data_manager = DataManager(output_path=config['output_path'], logger=logger)
+
+    # Inițializează fereastra principală Tkinter
+    root = tk.Tk()
+    app = App(root, detector, table_tracker, client_tracker, data_manager, logger)  # Adaugă logger aici
+
+    # Rulare GUI
+    root.mainloop()
+
+    # Eliberare resurse video
+    app.cap.release()
+    cv2.destroyAllWindows()
+
+    # Generare statistici
+    statistics = Statistics(data_manager.get_data(), logger=logger)
+    statistics.generate_report()
+
 
 if __name__ == "__main__":
-    while True:
-        monitor_restaurant()
-        time.sleep(10)  # Rulăm la fiecare 10 secunde pentru actualizare
+    main()
